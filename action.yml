@@ -1,0 +1,33 @@
+name: 'Oguri Run Contribution'
+description: 'Generate an animated Oguri character eating your GitHub contributions'
+author: 'mquangpham575'
+inputs:
+  github_user_name:
+    description: 'GitHub username to fetch contributions for'
+    required: true
+    default: ${{ github.repository_owner }}
+  svg_out_path:
+    description: 'Output path for the generated SVG'
+    required: false
+    default: 'oguri-run.svg'
+  github_token:
+    description: 'GitHub token with read:user scope'
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    - name: Install dependencies
+      run: pip install requests
+      shell: bash
+    - name: Generate Oguri SVG
+      run: python ${{ github.action_path }}/generate_oguri.py
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        OGURI_USER: ${{ inputs.github_user_name }}
+        OGURI_OUT: ${{ inputs.svg_out_path }}
