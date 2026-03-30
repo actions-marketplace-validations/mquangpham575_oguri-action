@@ -6,8 +6,8 @@ inputs:
     description: 'GitHub username to fetch contributions for'
     required: true
     default: ${{ github.repository_owner }}
-  svg_out_path:
-    description: 'Output path for the generated SVG'
+  outputs:
+    description: 'Output paths for the generated SVGs (supports multiple lines)'
     required: false
     default: 'oguri-run.svg'
   github_token:
@@ -30,4 +30,4 @@ runs:
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
         OGURI_USER: ${{ inputs.github_user_name }}
-        OGURI_OUT: ${{ inputs.svg_out_path }}
+        OGURI_OUTPUTS: ${{ inputs.outputs }}

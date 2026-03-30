@@ -15,10 +15,19 @@ MOUTH_RATIO = 0.8  # Mouth position as ratio of sprite width
 MOUTH_OFFSET = -20  # Fine-tuning adjustment for mouth sync
 ANIMATION_DURATION = "10s"
 
-# GitHub Dark Mode Palette
-BG_COLOR = "#0d1117"  # Page background
-SQUARE_BG = "#161b22" # Level 0 square background
-COLORS = [SQUARE_BG, "#0e4429", "#006d32", "#26a641", "#39d353"]
+# Palettes
+PALETTES = {
+    "github-dark": {
+        "bg": "#0d1117",
+        "sq_bg": "#161b22",
+        "colors": ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"]
+    },
+    "github-light": {
+        "bg": "#ffffff",
+        "sq_bg": "#ebedf0",
+        "colors": ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"]
+    }
+}
 
 def get_base64_image(filename):
     # Convert PNG asset to base64 for embedding
@@ -85,23 +94,24 @@ def get_contributions():
         print(f"Error fetching contributions: {e}")
         return [0] * 30
 
-def create_oguri_svg():
-    # Main logic to generate the animated SVG
-    days = get_contributions()
+def generate_svg(days, out_path, palette_name):
+    # Palette configuration
+    palette = PALETTES.get(palette_name, PALETTES["github-dark"])
+    bg_color = palette["bg"]
+    sq_bg = palette["sq_bg"]
+    colors = palette["colors"]
+
     normal_b64 = get_base64_image("oguri-normal.png")
     eat_b64 = get_base64_image("oguri-eat.png")
     
     # Calculate centering
     total_content_width = (len(days) * SQUARE_SIZE) + ((len(days) - 1) * GAP)
     x_offset = (WIDTH - total_content_width) // 2
-    # Position squares lower than center, plus 10px top margin
-    squares_y = (HEIGHT - SQUARE_SIZE) // 2 + 20 + 10
+    squares_y = (HEIGHT - SQUARE_SIZE) // 2 + 30
     
-    # Calculate Sprite Vertical Centering, pushed down 10px for top margin
     y_normal = (HEIGHT - SPRITE_NORMAL_SIZE) // 2 + 10
     y_eat = (HEIGHT - SPRITE_EAT_SIZE) // 2 + 10
     
-    # Reveal Animation Calculation (tracking mouth_x)
     m_start = -SPRITE_NORMAL_SIZE + (SPRITE_NORMAL_SIZE * MOUTH_RATIO + MOUTH_OFFSET)
     m_end = WIDTH + (SPRITE_NORMAL_SIZE * MOUTH_RATIO + MOUTH_OFFSET)
     rev_start = m_start - WIDTH
@@ -117,18 +127,10 @@ def create_oguri_svg():
     0% {{ transform: translateX({rev_start}px); }}
     100% {{ transform: translateX({rev_end}px); }}
   }}
-  .oguri-group {{
-    animation: moveOguri {ANIMATION_DURATION} linear infinite;
-  }}
-  .black-layer {{
-    animation: reveal {ANIMATION_DURATION} linear infinite;
-  }}
-  @keyframes switchSprite {{
-    {_generate_keyframes(days, x_offset)}
-  }}
-  @keyframes switchSpriteNormal {{
-    {_generate_keyframes(days, x_offset, inverse=True)}
-  }}
+  .oguri-group {{ animation: moveOguri {ANIMATION_DURATION} linear infinite; }}
+  .black-layer {{ animation: reveal {ANIMATION_DURATION} linear infinite; }}
+  @keyframes switchSprite {{ {_generate_keyframes(days, x_offset, colors, sq_bg)} }}
+  @keyframes switchSpriteNormal {{ {_generate_keyframes(days, x_offset, colors, sq_bg, inverse=True)} }}
   @keyframes oguri-bounce {{
     0%, 100% {{ transform: translateY(0px); }}
     50% {{ transform: translateY(-3px); }}
@@ -139,33 +141,27 @@ def create_oguri_svg():
 </style>
 '''
     
-    svg_body = f'  <rect width="{WIDTH}" height="{HEIGHT}" fill="{BG_COLOR}" />\n'
-    # Render contribution squares
+    svg_body = f'  <rect width="{WIDTH}" height="{HEIGHT}" fill="{bg_color}" />\n'
     for i, level in enumerate(days):
         x = x_offset + i * (SQUARE_SIZE + GAP)
-        svg_body += f'  <rect x="{x}" y="{squares_y}" width="{SQUARE_SIZE}" height="{SQUARE_SIZE}" rx="2" ry="2" fill="{COLORS[level]}" />\n'
+        svg_body += f'  <rect x="{x}" y="{squares_y}" width="{SQUARE_SIZE}" height="{SQUARE_SIZE}" rx="2" ry="2" fill="{colors[level]}" />\n'
     
-    # Reveal layer (matches background to "erase" squares as mouth passes)
-    svg_body += f'  <rect class="black-layer" x="0" y="0" width="{WIDTH}" height="{HEIGHT}" fill="{BG_COLOR}" />\n'
-    
-      # Render Sprite Group
+    svg_body += f'  <rect class="black-layer" x="0" y="0" width="{WIDTH}" height="{HEIGHT}" fill="{bg_color}" />\n'
     svg_body += f'''
   <g class="oguri-group">
     <g class="oguri-bounce">
       <image class="oguri-normal" href="data:image/png;base64,{normal_b64}" x="0" y="{y_normal}" width="{SPRITE_NORMAL_SIZE}" height="{SPRITE_NORMAL_SIZE}" />
       <image class="oguri-eat" href="data:image/png;base64,{eat_b64}" x="0" y="{y_eat}" width="{SPRITE_EAT_SIZE}" height="{SPRITE_EAT_SIZE}" opacity="0" />
     </g>
-    <!-- Debug Mouth Point: <circle cx="{SPRITE_NORMAL_SIZE * MOUTH_RATIO + MOUTH_OFFSET}" cy="{y_normal + SPRITE_NORMAL_SIZE // 2}" r="3" fill="red" /> -->
   </g>
 '''
     
-    # Path logic
-    out_path = os.environ.get("OGURI_OUT", "oguri-run.svg")
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     with open(out_path, "w") as f:
         f.write(svg_header + svg_body + "</svg>")
 
-def _generate_keyframes(days, start_x, inverse=False):
-    # Generates many keyframes for smooth opacity switching
+def _generate_keyframes(days, start_x, colors, sq_bg, inverse=False):
     keyframes = []
     num_steps = 400
     for step in range(num_steps + 1):
@@ -176,13 +172,33 @@ def _generate_keyframes(days, start_x, inverse=False):
         is_eating = False
         for i, level in enumerate(days):
             sq_x = start_x + i * (SQUARE_SIZE + GAP)
-            if sq_x <= mouth_x + 5 and mouth_x - 5 <= sq_x + SQUARE_SIZE and COLORS[level] != SQUARE_BG:
+            if sq_x <= mouth_x + 5 and mouth_x - 5 <= sq_x + SQUARE_SIZE and colors[level] != sq_bg:
                 is_eating = True
                 break
         
         opacity = (0 if is_eating else 1) if inverse else (1 if is_eating else 0)
         keyframes.append(f"{p:.2f}% {{ opacity: {opacity}; }}")
-    return "\n    ".join(keyframes)
+    return " ".join(keyframes)
+
+def main():
+    days = get_contributions()
+    outputs_str = os.environ.get("OGURI_OUTPUTS", "oguri-run.svg")
+    
+    # Handle multiple lines
+    output_lines = [line.strip() for line in outputs_str.replace(",", "\n").split("\n") if line.strip()]
+    
+    for output in output_lines:
+        path = output
+        palette = "github-dark"
+        
+        # Parse query params (e.g. ?palette=github-light)
+        if "?" in output:
+            path, query = output.split("?", 1)
+            params = dict(q.split("=") for q in query.split("&") if "=" in q)
+            palette = params.get("palette", "github-dark")
+        
+        print(f"Generating SVG: {path} with palette: {palette}")
+        generate_svg(days, path, palette)
 
 if __name__ == "__main__":
-    create_oguri_svg()
+    main()
