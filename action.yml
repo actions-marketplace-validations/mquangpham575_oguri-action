@@ -1,6 +1,9 @@
 name: 'Oguri Run Contribution'
-description: 'Generate an animated Oguri character eating your GitHub contributions'
+description: 'Generate an animated Oguri chibi eating your GitHub contributions'
 author: 'mquangpham575'
+branding:
+  icon: 'award'  
+  color: 'yellow'
 inputs:
   github_user_name:
     description: 'GitHub username to fetch contributions for'
